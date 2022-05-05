@@ -1,0 +1,14 @@
+#!/bin/sh
+
+
+proc_name="frpc"
+
+#proc_pid=$(ps -elf|grep ${proc_name}|grep -v grep|head -n 1|awk '{print $4}')
+
+proc_pid=$(cat "/run/"${proc_name}".pid")
+
+echo ${proc_name} "pid:" ${proc_pid}
+
+kill -9 ${proc_pid}
+
+rm "/run/"${proc_name}".pid" -rf

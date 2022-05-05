@@ -1,0 +1,31 @@
+#!/bin/sh
+
+
+proc_name="frpc"
+proc_conf="frpc.ini"
+time=$(date +%Y-%m-%d)
+proc_path="/usr/local/frp_0.41.0_linux_arm/"
+proc_log="/usr/local/frp_0.41.0_linux_arm/log/"${proc_name}"-"${time}".log"
+
+num=0
+find=0
+while [ $num -lt 5 ]
+do
+	if [ -e /tmp/RSSI ] ; then
+		echo "find /tmp/RSSI file network 4G startup."
+		find=1
+		break
+	fi
+	num=$(( num + 1 ))
+	sleep 1
+	echo "check network 4G which is not startup in " ${num} " times."
+done
+
+if [ $find -eq 1 ] ; then
+	echo ${proc_path}${proc_name} "log:" ${proc_log}
+	${proc_path}${proc_name} -c ${proc_path}${proc_conf} > ${proc_log} &
+	pid=$!
+	echo ${pid} > "/run/"${proc_name}".pid"
+else
+	echo "check network 4G in five times, it is not startup." ${proc_path}${proc_name} " can not startup."
+fi

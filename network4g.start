@@ -1,0 +1,17 @@
+#!/bin/sh
+
+proc_name="quectel-CM"
+
+time=$(date +%Y-%m-%d)
+
+proc_path="/usr/local/smartApp/bin/"
+
+proc_log="/usr/local/smartApp/log/"${proc_name}"-"${time}".log"
+
+echo ${proc_path}${proc_name} "log:" ${proc_log}
+
+${proc_path}${proc_name} -f ${proc_log} &
+
+pid=$!
+
+echo ${pid} > "/run/"${proc_name}".pid"

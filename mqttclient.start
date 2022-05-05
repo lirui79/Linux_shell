@@ -1,0 +1,24 @@
+#!/bin/sh
+
+
+proc_name="mqttclient"
+
+proc_conf="mqttclient.ini"
+
+time=$(date +%Y-%m-%d)
+
+proc_path="/usr/local/smartApp/bin/"
+
+lib_path="/usr/local/smartApp/lib/"
+
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:${lib_path}
+
+proc_log="/usr/local/smartApp/log/"${proc_name}"-"${time}".log"
+
+echo ${proc_path}${proc_name} "log:" ${proc_log}
+
+#${proc_path}${proc_name} -c ${proc_path}${proc_conf} > ${proc_log} &
+
+pid=$!
+
+echo ${pid} > "/run/"${proc_name}".pid"
