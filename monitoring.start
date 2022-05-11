@@ -1,16 +1,56 @@
 #!/bin/sh
 
+num=0
+find=0
+while [ $num -lt 30 ]
+do
+	if [ -e /tmp/usb0 ] ; then
+		echo "find /tmp/usb0 file network 4G startup."
+		find=1
+		break
+	fi
+	num=$(( num + 1 ))
+	sleep 1
+	echo "check network 4G which is not startup in " ${num} " times."
+done
 
-proc_name="monitor.sh"
+if [ $find -eq 1 ] ; then
+	echo "check network 4G startup."
+else
+	echo "check network 4G in " ${num} " times, it is not startup."
+fi
 
-proc_path="/usr/local/smartApp/bin/"
+udevfiles=$(ls /dev/sd[abc][0-9])
+bCheckBox=0
+if [ -n ${udevfiles} ] ; then
+	mkdir -p  /tmp/udisk
+	mount  ${udevfiles}  /tmp/udisk 2>&1
+	if [ -e /tmp/udisk/udisk_checkBoxFile ] ; then
+		bCheckBox=1
+	fi
+	umount /tmp/udisk  2>&1
+	rm -rf /tmp/udisk
+fi
 
-proc_log="/usr/local/smartApp/log/"${proc_name}"-"${time}".log"
 
-echo ${proc_path}${proc_name} "log:" ${proc_log}
-
-#${proc_path}${proc_name} > ${proc_log} &
-
-pid=$!
-
-echo ${pid} > "/run/"${proc_name}".pid"
+if [ $bCheckBox -eq 1 ] ; then
+	echo "u disks startup checkBox."
+	proc_name="checkBox.sh"
+	proc_path="/usr/local/bin/"
+	time=$(date +%Y-%m-%d)
+	proc_log="/var/log/checkBox-"${time}".log"
+	echo ${proc_path}${proc_name} "log:" ${proc_log}
+	${proc_path}${proc_name} > ${proc_log} &
+	pid=$!
+	echo ${pid} > "/run/"${proc_name}".pid"
+else
+	echo "startup monitor."
+	proc_name="monitor.sh"
+	proc_path="/usr/local/bin/"
+	time=$(date +%Y-%m-%d)
+	proc_log="/var/log/monitor-"${time}".log"
+	echo ${proc_path}${proc_name} "log:" ${proc_log}
+	${proc_path}${proc_name} > ${proc_log} &
+	pid=$!
+	echo ${pid} > "/run/"${proc_name}".pid"
+fi
