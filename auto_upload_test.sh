@@ -15,25 +15,28 @@ function onCtrlC () {
     exit 0
 }
 
-function process_over () {
-	local PID=$1
+function check_process () {
+	local PROCESS=$1
+	local TIMEOUT=$2
 	local num=0
-	local find=0
-	while [ $num -lt 90 ]
+	while [ $num -lt $TIMEOUT ]
 	do
-	    DPID=$(ps -ef | grep dfu-smi | grep -v grep | awk '{print $2}')
-		if [ -z "$DPID" ]; then
+	    PID=$(ps -ef | grep ${PROCESS} | grep -v grep | awk '{print $2}')
+		if [ -z "$PID" ]; then
+			sync
 			return 1
 		fi
 		num=$(( num + 1 ))
 		sleep 1
 	done
-	echo "./dfu-smi Timeout, it will be killed!"
+	echo " ${PROCESS} run Timeout, it will be killed!"
 	kill -9 $PID
-	while [ $num -lt 20 ]
+	num=0
+	while [ $num -lt $TIMEOUT ]
 	do
-	    DPID=$(ps -ef | grep dfu-smi | grep -v grep | awk '{print $2}')
-		if [ -z "$DPID" ]; then
+	    PID=$(ps -ef | grep ${PROCESS} | grep -v grep | awk '{print $2}')
+		if [ -z "$PID" ]; then
+			sync
 			return 0
 		fi
 		num=$(( num + 1 ))
@@ -49,14 +52,15 @@ function check_cardState () {
 	if [ -e ${BOARD_LOG} ] ; then
 		rm 	${BOARD_LOG} -rf
 	fi
-	./dfu-smi -d $BNUM > ${BOARD_LOG}
-#	./dfu-smi -d $BNUM > ${BOARD_LOG}  &
-#    PID=$!
-#	process_over $PID
-#	if [ $? -eq 0 ] ;then
-#        return 0
-#	fi
-    sync
+#	./dfu-smi -d $BNUM > ${BOARD_LOG}
+	./dfu-smi -d $BNUM > ${BOARD_LOG}  &
+    sleep 2
+	check_process dfu-smi 30
+	ret=$?
+	if [ $ret -eq 0 ] ;then
+        return -1
+	fi
+
 	BOARDID=$(cat ${BOARD_LOG} | grep "SmarHTC-V6624B" |  awk '{print $1}')
 	if [ -z "$BOARDID" ]; then
 		return 0
@@ -193,10 +197,17 @@ function dec_md5_match () {
 		rm ${OUTPUT_FILE}_${BNUM}*.yuv -rf
 	fi
 
-	./multi_thread_dec -i ${SOURCE_FILE_NAME} -b ${BNUM} -t 1 -o ${OUTPUT_FILE}_${BNUM} -k > ${DEC_LOG}
-
+#	./multi_thread_dec -i ${SOURCE_FILE_NAME} -b ${BNUM} -t 1 -o ${OUTPUT_FILE}_${BNUM} -k > ${DEC_LOG}
+	./multi_thread_dec -i ${SOURCE_FILE_NAME} -b ${BNUM} -t 1 -o ${OUTPUT_FILE}_${BNUM} -k > ${DEC_LOG} &
+	sleep 2
+	check_process multi_thread_dec 10
+	ret=$?
+	if [ $ret -eq 0 ] ;then
+        return -1
+	fi
 	md5_match ${OUTPUT_FILE}_${BNUM}*.yuv ${TARGET_FILE_MD5}
-	if [ $? -eq 1 ] ;then
+	ret=$?
+	if [ $ret -eq 1 ] ;then
 		echo -e "$BNUM $BSLOT dec_md5_match ${GREEN}PASS${RES}"
 		return 1
 	else
@@ -221,10 +232,18 @@ function enc_md5_match () {
 		rm ${OUTPUT_FILE}_${BNUM}*.h264 -rf
 	fi
 
-	./multi_thread_enc -i ${SOURCE_FILE_NAME} -b ${BNUM} -c h264 -t 1 -o ${OUTPUT_FILE}_${BNUM} -k > ${ENCH264_LOG}
+#	./multi_thread_enc -i ${SOURCE_FILE_NAME} -b ${BNUM} -c h264 -t 1 -o ${OUTPUT_FILE}_${BNUM} -k > ${ENCH264_LOG}
+	./multi_thread_enc -i ${SOURCE_FILE_NAME} -b ${BNUM} -c h264 -t 1 -o ${OUTPUT_FILE}_${BNUM} -k > ${ENCH264_LOG} &
+    sleep 2
+	check_process multi_thread_enc 10
+	ret=$?
+	if [ $ret -eq 0 ] ;then
+        return -1
+	fi
 
 	md5_match ${OUTPUT_FILE}_${BNUM}*.h264 ${TARGET_H264_MD5}
-	if [ $? -eq 1 ] ;then
+	ret=$?
+	if [ $ret -eq 1 ] ;then
 		echo -e "$BNUM $BSLOT enc_md5_match h264 ${GREEN}PASS${RES}"
 		return 1
 	else
@@ -241,7 +260,8 @@ function enc_md5_match () {
 	./multi_thread_enc -i ${SOURCE_FILE_NAME} -b ${BNUM} -c h265 -t 1 -o ${OUTPUT_FILE}_${BNUM} -k > ${ENCH265_LOG}
 
 	md5_match ${OUTPUT_FILE}_${BNUM}*.h265 ${TARGET_H265_MD5}
-	if [ $? -eq 1 ] ;then
+	ret=$?
+	if [ $ret -eq 1 ] ;then
 		echo -e "$BNUM $BSLOT enc_md5_match h265 ${GREEN}PASS${RES}"
 		return 1
 	else
@@ -266,10 +286,18 @@ function trans_md5_match () {
 		rm ${OUTPUT_FILE}_${BNUM}*.h264 -rf
 	fi
 
-	./multi_thread_transcode -i ${SOURCE_FILE_NAME} -b ${BNUM} -c h264 -t 1 -o ${OUTPUT_FILE}_${BNUM} -k > ${TRANSH264_LOG}
+#	./multi_thread_transcode -i ${SOURCE_FILE_NAME} -b ${BNUM} -c h264 -t 1 -o ${OUTPUT_FILE}_${BNUM} -k > ${TRANSH264_LOG}
+	./multi_thread_transcode -i ${SOURCE_FILE_NAME} -b ${BNUM} -c h264 -t 1 -o ${OUTPUT_FILE}_${BNUM} -k > ${TRANSH264_LOG} &
+    sleep 2
+	check_process multi_thread_transcode 10
+	ret=$?
+	if [ $ret -eq 0 ] ;then
+        return -1
+	fi
 
 	md5_match ${OUTPUT_FILE}_${BNUM}*.h264 ${TARGET_H264_MD5}
-	if [ $? -eq 1 ] ;then
+	ret=$?
+	if [ $ret -eq 1 ] ;then
 		echo -e "$BNUM $BSLOT trans_md5_match h264->h264 ${GREEN}PASS${RES}"
 		return 1
 	else
@@ -286,7 +314,8 @@ function trans_md5_match () {
 	./multi_thread_transcode -i ${SOURCE_FILE_NAME} -b ${BNUM} -c h265 -t 1 -o ${OUTPUT_FILE}_${BNUM} -k > ${TRANSH265_LOG}
 
 	md5_match ${OUTPUT_FILE}_${BNUM}*.h265 ${TARGET_H265_MD5}
-	if [ $? -eq 1 ] ;then
+	ret=$?
+	if [ $ret -eq 1 ] ;then
 		echo -e "$BNUM $BSLOT trans_md5_match h264->h265 ${GREEN}PASS${RES}"
 		return 1
 	else
@@ -331,9 +360,18 @@ function dec_test_freq () {
     if [ -e ${DEC_LOG} ] ; then
 		rm 	${DEC_LOG} -rf
     fi
-	./multi_thread_dec -i ${SOURCE_FILE_NAME} -b ${BNUM} -t 24 -R 0 > ${DEC_LOG}
+#	./multi_thread_dec -i ${SOURCE_FILE_NAME} -b ${BNUM} -t 24 -R 0 > ${DEC_LOG}
+	./multi_thread_dec -i ${SOURCE_FILE_NAME} -b ${BNUM} -t 24 -R 0 > ${DEC_LOG} &
+    sleep 2
+	check_process multi_thread_dec 120
+	ret=$?
+	if [ $ret -eq 0 ] ;then
+        return -1
+	fi
+
     fps_match $DEC_LOG $FPS_NUM
-	if [ $? -eq 1 ] ;then
+	ret=$?
+	if [ $ret -eq 1 ] ;then
 		echo -e "$BNUM $BSLOT dec fps >= 720 ${GREEN}PASS${RES}"
 		return 1
 	else
@@ -354,14 +392,24 @@ function enc_test_freq () {
     if [ -e ${ENC_H264_LOG} ] ; then
 		rm 	${ENC_H264_LOG} -rf
     fi
-	./multi_thread_enc -i ${SOURCE_FILE_NAME} -b ${BNUM} -c h264 -t 24 > ${ENC_H264_LOG}
+#	./multi_thread_enc -i ${SOURCE_FILE_NAME} -b ${BNUM} -c h264 -t 24 > ${ENC_H264_LOG}
+	./multi_thread_enc -i ${SOURCE_FILE_NAME} -b ${BNUM} -c h264 -t 24 > ${ENC_H264_LOG} &
+    sleep 2
+	check_process multi_thread_enc 120
+	ret=$?
+	if [ $ret -eq 0 ] ;then
+        return -1
+	fi
+
     fps_match $ENC_H264_LOG $FPS_NUM
-	if [ $? -eq 1 ] ;then
+	ret=$?
+	if [ $ret -eq 1 ] ;then
 		echo -e "$BNUM $BSLOT enc h264 fps >= 720 ${GREEN}PASS${RES}"
 		return 1
 	else
         fps_match $ENC_H264_LOG $FPS_NUM2
-		if [ $? -eq 1 ] ;then
+		ret=$?
+	    if [ $ret -eq 1 ] ;then
 		    echo -e "$BNUM $BSLOT enc h264 fps >= 300 but < 720 ${GREEN}PASS${RES}"
 			echo -e "The machine hardware config too low"
 			return 1
@@ -374,14 +422,24 @@ function enc_test_freq () {
     if [ -e ${ENC_H265_LOG} ] ; then
 		rm 	${ENC_H265_LOG} -rf
     fi
-	./multi_thread_enc -i ${SOURCE_FILE_NAME} -b ${BNUM} -c h265 -t 24 > ${ENC_H265_LOG}
+#	./multi_thread_enc -i ${SOURCE_FILE_NAME} -b ${BNUM} -c h265 -t 24 > ${ENC_H265_LOG}
+	./multi_thread_enc -i ${SOURCE_FILE_NAME} -b ${BNUM} -c h265 -t 24 > ${ENC_H265_LOG} &
+    sleep 2
+	check_process multi_thread_enc 120
+	ret=$?
+	if [ $ret -eq 0 ] ;then
+        return -1
+	fi
+
     fps_match $ENC_H265_LOG $FPS_NUM
-	if [ $? -eq 1 ] ;then
+	ret=$?
+	if [ $ret -eq 1 ] ;then
 		echo -e "$BNUM $BSLOT enc h265 fps >= 720 ${GREEN}PASS${RES}"
 		return 1
 	else
         fps_match $ENC_H265_LOG $FPS_NUM2
-		if [ $? -eq 1 ] ;then
+    	ret=$?
+	    if [ $ret -eq 1 ] ;then
 		    echo -e "$BNUM $BSLOT enc h265 fps >= 300 but < 720 ${GREEN}PASS${RES}"
 			echo -e "The machine hardware config too low"
 		else
@@ -402,9 +460,18 @@ function trans_test_freq () {
     if [ -e ${TRANH264_LOG} ] ; then
 		rm 	${TRANH264_LOG} -rf
     fi
-	./multi_thread_transcode -i ${SOURCE_FILE_NAME} -b ${BNUM} -c h264 -t 12 > ${TRANH264_LOG}
+#	./multi_thread_transcode -i ${SOURCE_FILE_NAME} -b ${BNUM} -c h264 -t 12 > ${TRANH264_LOG}
+	./multi_thread_transcode -i ${SOURCE_FILE_NAME} -b ${BNUM} -c h264 -t 12 > ${TRANH264_LOG} &
+    sleep 2
+	check_process multi_thread_transcode 120
+	ret=$?
+	if [ $ret -eq 0 ] ;then
+        return -1
+	fi
+
     fps_match $TRANH264_LOG $FPS_NUM
-	if [ $? -eq 1 ] ;then
+	ret=$?
+	if [ $ret -eq 1 ] ;then
 		echo -e "$BNUM $BSLOT trans h264->h264 fps >= 360 ${GREEN}PASS${RES}"
 		return 1
 	else
@@ -415,9 +482,18 @@ function trans_test_freq () {
     if [ -e ${TRANH265_LOG} ] ; then
 		rm 	${TRANH265_LOG} -rf
     fi
-	./multi_thread_transcode -i ${SOURCE_FILE_NAME} -b ${BNUM} -c h265 -t 12 > ${TRANH265_LOG}
+#	./multi_thread_transcode -i ${SOURCE_FILE_NAME} -b ${BNUM} -c h265 -t 12 > ${TRANH265_LOG}
+	./multi_thread_transcode -i ${SOURCE_FILE_NAME} -b ${BNUM} -c h265 -t 12 > ${TRANH265_LOG} &
+    sleep 2
+	check_process multi_thread_transcode 120
+	ret=$?
+	if [ $ret -eq 0 ] ;then
+        return -1
+	fi
+
     fps_match $TRANH265_LOG $FPS_NUM
-	if [ $? -eq 1 ] ;then
+	ret=$?
+	if [ $ret -eq 1 ] ;then
 		echo -e "$BNUM $BSLOT trans h264->h265 fps >= 360 ${GREEN}PASS${RES}"
 		return 1
 	else
@@ -429,6 +505,7 @@ function trans_test_freq () {
 ####################################################################
 ####################################################################
 ####################################################################
+typeset -u PCARD
 declare -a dec_Md5=()
 declare -a enc_Md5=()
 declare -a tran_Md5=()
@@ -440,9 +517,14 @@ declare -a card_Enum=(0 0 0 0 0 0)
 declare -a card_State=()
 pciCard=($(lspci | grep 103 |  awk '{print $1}'))
 pciNum=$(lspci | grep 103 |  awk '{print $1}' | wc -l)
-#pciCard=$(lspci | grep 103 |  awk '{print $1}')
-#pciNum=$(lspci | grep 103 |  awk '{print $1}' | wc -l)
-
+PNUM=$#
+PGEN=4
+if [ $PNUM -gt 0 ] ; then
+	PCARD=$1
+	if [ $PCARD == "PCI" ] ; then
+		PGEN=16
+	fi
+fi
 
 echo "========================================================================="
 echo "Card total:$pciNum"
@@ -450,26 +532,58 @@ echo "Card total:$pciNum"
 for ((i=0; i < pciNum; ++i))
 do
     pciState=$(lspci -s "${pciCard[i]}" -vvv | grep LnkSta | head -n 1 |  awk '{print $1,$2,$3,$4,$5}')
+	pciSpeed=$(lspci -s "${pciCard[i]}" -vvv | grep LnkSta | head -n 1 |  awk '{print $3}')
     echo  $i" "${pciCard[i]}" "${pciState}
+	pciSpeed=${pciSpeed//'GT/s,'/''}
+#	echo $pciSpeed
+	if [ $pciSpeed -ge 8 ] ; then
+	     card_State[i]=1
+	else
+		card_State[i]=0
+#		echo -e  "CHECK CARD $i ${pciCard[i]} STATE ${RED}FAILED${RES}"
+	    continue
+	fi
+	pciGen=$(lspci -s "${pciCard[i]}" -vvv | grep LnkSta | head -n 1 |  awk '{print $5}')
+	pciGen=${pciGen//'x'/''}
+	pciGen=${pciGen//','/''}
+#	echo $pciGen
+	if [ $pciGen -ge $PGEN ] ; then
+	    card_State[i]=1
+#		echo -e  "CHECK CARD $i ${pciCard[i]} STATE ${GREEN}PASS${RES}"
+	else
+		card_State[i]=0
+#		echo -e  "CHECK CARD $i ${pciCard[i]} STATE ${RED}FAILED${RES}"
+	fi
 done
+
 echo "========================================================================="
 echo "Test Card State"
 for ((i=0; i < pciNum; ++i))
 do
-		check_cardState $i ${pciCard[i]}
-		if [ $? -eq 1 ] ;then
-			card_State[i]=1
-			echo -e  "CHECK CARD $i ${pciCard[i]} STATE ${GREEN}PASS${RES}"
-		else
-			card_State[i]=0
-			echo -e  "CHECK CARD $i ${pciCard[i]} STATE ${RED}FAILED${RES}"
-		fi
+	if [ ${card_State[i]} -eq 0 ] ;then
+		echo -e  "CHECK CARD $i ${pciCard[i]} STATE ${RED}FAILED${RES}"
+	    continue
+	fi
+	check_cardState $i ${pciCard[i]}
+	ret=$?
+	if [ $ret -lt 0  ] ;then
+		card_State[i]=0
+		echo -e  "CHECK CARD $i ${pciCard[i]} STATE ${RED}FAILED${RES}"
+	    continue
+	fi
+
+	if [ $ret -eq 1 ] ;then
+		card_State[i]=1
+		echo -e  "CHECK CARD $i ${pciCard[i]} STATE ${GREEN}PASS${RES}"
+	else
+		card_State[i]=0
+		echo -e  "CHECK CARD $i ${pciCard[i]} STATE ${RED}FAILED${RES}"
+	fi
 done
 echo "========================================================================="
 ####################################################################
 ####################################################################
 ####################################################################
-#PNUM=$#
 PNUM=0
 if [ $PNUM -gt 0 ] ; then
 	upload=0
@@ -477,7 +591,8 @@ if [ $PNUM -gt 0 ] ; then
 	FIRMWARE=$1
 	if [ $upload -eq 1 ] ; then
 		ddr_upload ${FIRMWARE} ${pciNum} ${pciCard}
-		if [ $? -eq 1 ] ;then
+	    ret=$?
+	    if [ $ret -eq 1 ] ;then
 			echo "upload all card pass"
 		else
 			exit -1
@@ -486,7 +601,8 @@ if [ $PNUM -gt 0 ] ; then
 
 	if [ $update -eq 1 ] ; then
 		ssi_update ${FIRMWARE} ${pciNum} ${pciCard}
-		if [ $? -eq 1 ] ;then
+	    ret=$?
+	    if [ $ret -eq 1 ] ;then
 			echo "update all card pass, please upload sdfirm*.bin"
 			exit 1
 		else
@@ -511,7 +627,15 @@ do
 	    continue
 	fi
 	dec_md5_match $i ${pciCard[i]}
-	if [ $? -eq 0 ] ;then
+	ret=$?
+	if [ $ret -lt 0  ] ;then
+		card_State[i]=0
+		dec_Md5[i]=0
+		ueNum=$(( ueNum + 1 ))
+	    continue
+	fi
+
+	if [ $ret -eq 0 ] ;then
 		dec_Md5[i]=0
 		ueNum=$(( ueNum + 1 ))
 	else
@@ -541,7 +665,15 @@ do
 	    continue
 	fi
 	enc_md5_match $i ${pciCard[i]}
-	if [ $? -eq 0 ] ;then
+	ret=$?
+	if [ $ret -lt 0  ] ;then
+		card_State[i]=0
+		enc_Md5[i]=0
+		ueNum=$(( ueNum + 1 ))
+	    continue
+	fi
+
+	if [ $ret -eq 0 ] ;then
 		enc_Md5[i]=0
 		ueNum=$(( ueNum + 1 ))
 	else
@@ -572,7 +704,15 @@ do
 	    continue
 	fi
 	trans_md5_match $i ${pciCard[i]}
-	if [ $? -eq 0 ] ;then
+	ret=$?
+	if [ $ret -lt 0  ] ;then
+		card_State[i]=0
+		tran_Md5[i]=0
+		ueNum=$(( ueNum + 1 ))
+	    continue
+	fi
+
+	if [ $ret -eq 0 ] ;then
 		tran_Md5[i]=0
 		ueNum=$(( ueNum + 1 ))
 	else
@@ -608,7 +748,15 @@ do
 	    continue
 	fi
 	dec_test_freq $i ${pciCard[i]}
-	if [ $? -eq 0 ] ;then
+	ret=$?
+	if [ $ret -lt 0  ] ;then
+		card_State[i]=0
+		dec_Fps[i]=0
+		ueNum=$(( ueNum + 1 ))
+	    continue
+	fi
+
+	if [ $ret -eq 0 ] ;then
 		ueNum=$(( ueNum + 1 ))
 		dec_Fps[i]=0
     else
@@ -656,7 +804,15 @@ do
 	    continue
 	fi
 	enc_test_freq $i ${pciCard[i]}  $DATA_PATH/1920x1080_h265_30fps_1569f_inner_yuv420p.yuv
-	if [ $? -eq 0 ] ;then
+	ret=$?
+	if [ $ret -lt 0  ] ;then
+		card_State[i]=0
+		enc_Fps[i]=0
+		ueNum=$(( ueNum + 1 ))
+	    continue
+	fi
+
+	if [ $ret -eq 0 ] ;then
 		ueNum=$(( ueNum + 1 ))
 		enc_Fps[i]=0
     else
@@ -687,7 +843,15 @@ do
 	    continue
 	fi
 	trans_test_freq $i ${pciCard[i]}
-	if [ $? -eq 0 ] ;then
+	ret=$?
+	if [ $ret -lt 0  ] ;then
+		card_State[i]=0
+		tran_Fps[i]=0
+		ueNum=$(( ueNum + 1 ))
+	    continue
+	fi
+
+	if [ $ret -eq 0 ] ;then
 		ueNum=$(( ueNum + 1 ))
 		tran_Fps[i]=0
     else
@@ -795,18 +959,13 @@ fi
 ####################################################################
 ####################################################################
 ####################################################################
-PNUM=$#
-if [ $PNUM -gt 0 ] ; then
-	update=1
-	FIRMWARE=$1
-else
-	update=1
-	FIRMWARE=../driver/Bin/sdfirm*.bin
-fi
 
+update=1
+FIRMWARE=../driver/Bin/sdfirm*.bin
 if [ $update -eq 1 ] ; then
 	ssi_update ${FIRMWARE} ${pciNum} "${pciCard[*]}" "${card_State[*]}"
-	if [ $? -eq 1 ] ;then
+	ret=$?
+	if [ $ret -eq 1 ] ;then
 		echo -e "UPDATE ALL CARDS ${GREEN}PASS${RES}, please reboot system"
 		exit  1
 	else
